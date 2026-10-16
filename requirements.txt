@@ -1,0 +1,6 @@
+streamlit>=1.50
+gspread>=6.0
+pandas
+psycopg2-binary
+sshtunnel
+paramiko>=3,<4   # sshtunnel breaks on paramiko 4
