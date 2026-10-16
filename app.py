@@ -89,7 +89,7 @@ def accuracy_chart(t: pd.DataFrame, title: str):
     lo = max(0, math.floor(t["accuracy %"].min()) - 1)
     base = alt.Chart(t).encode(
         y=alt.Y("name:N", sort=alt.EncodingSortField("accuracy %", order="ascending"), title=None,
-                axis=alt.Axis(labelLimit=160)),
+                axis=alt.Axis(labelLimit=160, labelOverlap=False, labelFontSize=13, labelPadding=6)),
         x=alt.X("accuracy %:Q", scale=alt.Scale(domain=[lo, 100], clamp=True), title="Accuracy %"),
         tooltip=[alt.Tooltip("name:N", title="Name"), alt.Tooltip("orders:Q", title="Orders", format=","),
                  alt.Tooltip("points:Q", title="Points", format="g"), alt.Tooltip("error %:Q", format=".2f"),
@@ -97,7 +97,7 @@ def accuracy_chart(t: pd.DataFrame, title: str):
     bars = base.mark_bar().encode(color=alt.condition(alt.datum.note == "low volume", alt.value("#757575"), alt.value("#2f6fb0")))
     labels = base.mark_text(align="right", dx=-5, color="white", fontWeight="bold").encode(text=alt.Text("accuracy %:Q", format=".2f"))
     st.subheader(title)
-    st.altair_chart((bars + labels).properties(height=max(110, 30 * len(t))), use_container_width=True)
+    st.altair_chart((bars + labels).properties(height=alt.Step(34)), use_container_width=True)
     st.caption(f"The axis starts at {lo}%, not 0, so the differences are visible.")
 
 
