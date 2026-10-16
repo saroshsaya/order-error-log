@@ -60,17 +60,18 @@ REASONS = {
 }
 
 
-def rule(category, reason):
-    return REASONS.get(category, {}).get(reason, {"a": 0, "p": 0})
+def rule(category, reason, rules=None):
+    return (rules or REASONS).get(category, {}).get(reason, {"a": 0, "p": 0})
 
 
-def is_fixed(category, reason):
-    return bool(rule(category, reason).get("fixed"))
+def is_fixed(category, reason, rules=None):
+    return bool(rule(category, reason, rules).get("fixed"))
 
 
-def points(category, reason, mistakes):
-    """-> (packer_points, assembler_points). Labels count once per order."""
-    r = rule(category, reason)
+def points(category, reason, mistakes, rules=None):
+    """-> (packer_points, assembler_points). Labels count once per order.
+    `rules` = the points currently saved in Settings (defaults to REASONS above)."""
+    r = rule(category, reason, rules)
     n = 1 if r.get("fixed") else max(int(mistakes or 1), 1)
     return r["p"] * n, r["a"] * n
 
@@ -96,3 +97,14 @@ LOGIN_NAMES = {
 
 START_DATE = "2026-01-01"       # error % is calculated for orders packed from this date
 LOW_VOLUME = 500                # people with fewer orders in the period are marked "low volume"
+
+# Logins left out of the error % rankings (executives, test accounts, ...). Lower-case.
+EXCLUDED = {
+    "dmg@saya.net.in",
+    "ay9936370@gmail.com",
+    "shivangi12.301@gmail.com",
+    "aryanrawat229@gmail.com",
+    "krishnagptamcs@gmail.com",
+    "soni92chaubey@gmail.com",
+    "anaschoudhary200084@gmail.com",
+}

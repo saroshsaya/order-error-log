@@ -46,9 +46,18 @@ def test_duplicates_same_mistake_counts_once():
 
 
 def test_active_drops_reversed_and_unpacked():
-    df = _df([{"order_id": "1", "packed_at": "2026-03-02 10:00"},
-              {"order_id": "2", "packed_at": "2026-03-03 10:00", "reversed": "Yes"},
-              {"order_id": "3", "packed_at": ""}])
+    p = {"packer": "a@x.com", "assembler": "b@x.com"}
+    df = _df([{"order_id": "1", "packed_at": "2026-03-02 10:00", **p},
+              {"order_id": "2", "packed_at": "2026-03-03 10:00", "reversed": "Yes", **p},
+              {"order_id": "3", "packed_at": "", **p}])
+    assert list(A.active(df)["order_id"]) == ["1"]
+
+
+def test_active_drops_entries_without_packer_or_assembler():
+    df = _df([{"order_id": "1", "packed_at": "2026-03-02", "packer": "a@x.com", "assembler": "b@x.com"},
+              {"order_id": "2", "packed_at": "2026-03-02", "packer": "", "assembler": "b@x.com"},
+              {"order_id": "3", "packed_at": "2026-03-02", "packer": "a@x.com", "assembler": "not mentioned"},
+              {"order_id": "4", "packed_at": "2026-03-02", "packer": "a@x.com", "assembler": "  "}])
     assert list(A.active(df)["order_id"]) == ["1"]
 
 
@@ -70,7 +79,7 @@ def test_error_percent_respects_the_date_range():
 
 
 def test_low_volume_and_names():
-    df = _df([{"order_id": "1", "packed_at": "2026-03-02", "packer": "naagard47@gmail.com", "packer_points": 1}])
+    df = _df([{"order_id": "1", "packed_at": "2026-03-02", "packer": "naagard47@gmail.com", "assembler": "b@x.com", "packer_points": 1}])
     vol = _vol([("2026-03-02", "packer", "naagard47@gmail.com", 100)])
     r = A.person_table(A.active(df), vol, "packer", date(2026, 3, 1), date(2026, 3, 31)).iloc[0]
     assert r["note"] == "low volume" and r["name"] == "Deepak"
@@ -78,8 +87,8 @@ def test_low_volume_and_names():
 
 
 def test_monthly_pivot_and_team_pct():
-    df = _df([{"order_id": "1", "packed_at": "2026-03-02", "packer": "a@x.com", "packer_points": 1},
-              {"order_id": "2", "packed_at": "2026-04-02", "packer": "a@x.com", "packer_points": 2}])
+    df = _df([{"order_id": "1", "packed_at": "2026-03-02", "packer": "a@x.com", "assembler": "b@x.com", "packer_points": 1},
+              {"order_id": "2", "packed_at": "2026-04-02", "packer": "a@x.com", "assembler": "b@x.com", "packer_points": 2}])
     vol = _vol([("2026-03-02", "packer", "a@x.com", 200), ("2026-04-02", "packer", "a@x.com", 400)])
     p = A.monthly_pivot(A.active(df), vol, "packer", date(2026, 3, 1), date(2026, 4, 30))
     assert p.loc["a", "2026-03"] == 0.5 and p.loc["a", "2026-04"] == 0.5
@@ -94,3 +103,33 @@ def test_search():
     assert list(A.search(df, "deepak")["order_id"]) == ["583492"]           # by display name
     assert list(A.search(df, "dc 12")["order_id"]) == ["583492"]
     assert len(A.search(df, "")) == 2
+
+
+def test_excluded_people_are_left_out_of_every_table():
+    df = _df([{"order_id": "1", "packed_at": "2026-03-02", "packer": "a@x.com", "assembler": "dmg@saya.net.in", "assembler_points": 1},
+              {"order_id": "2", "packed_at": "2026-03-02", "packer": "ANAschoudhary200084@gmail.com", "assembler": "b@x.com", "packer_points": 2}])
+    vol = _vol([("2026-03-02", "packer", "a@x.com", 600), ("2026-03-02", "packer", "anaschoudhary200084@gmail.com", 600),
+                ("2026-03-02", "assembler", "dmg@saya.net.in", 600), ("2026-03-02", "assembler", "b@x.com", 600)])
+    act = A.active(df)
+    s, e = date(2026, 3, 1), date(2026, 3, 31)
+    assert list(A.person_table(act, vol, "packer", s, e)["person"]) == ["a@x.com"]
+    assert list(A.person_table(act, vol, "assembler", s, e)["person"]) == ["b@x.com"]
+    assert list(A.monthly_pivot(act, vol, "assembler", s, e).index) == ["b"]
+    # the exclusion list can be overridden
+    assert len(A.person_table(act, vol, "packer", s, e, exclude=())) == 2
+
+
+def test_score_follows_the_current_rules_for_old_and_new_entries():
+    df = _df([{"category": "Internal", "reason": "Wrong label / wrong order labelled", "mistakes": 1},
+              {"category": "Internal", "reason": "Wrong drug packed", "mistakes": 3},
+              {"category": "External", "reason": "Packed correctly - footage checked", "mistakes": 0}])
+    base = A.score(df)
+    assert list(base["packer_points"]) == [2, 3, 0] and list(base["assembler_points"]) == [0, 3, 0]
+    import copy
+    rules = copy.deepcopy(C.REASONS)
+    rules["Internal"]["Wrong label / wrong order labelled"]["p"] = 3        # raise the label penalty
+    rules["Internal"]["Wrong drug packed"]["a"] = 0.5                       # and halve the assembler's
+    new = A.score(df, rules)
+    assert list(new["packer_points"]) == [3, 3, 0] and list(new["assembler_points"]) == [0, 1.5, 0]
+    assert C.points("Internal", "Wrong label / wrong order labelled", 4, rules) == (3, 0)   # still once per order
+    assert A.score(df.iloc[0:0]).empty                                                      # empty log is fine

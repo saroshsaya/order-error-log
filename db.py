@@ -3,7 +3,7 @@
 The two SQL statements can be overridden in secrets ([sql] lookup / volumes) so you can match the
 exact query you use for your extracts without touching this code.
 lookup  -> one row: packer, assembler, packed_at [, n_items]      (parameter %s = order_id)
-volumes -> many rows: day, role, person, orders   (role = 'packer' / 'assembler'; orders packed per day since 2026-01-01)
+volumes -> many rows: day, role, person, orders   (role = 'packer' / 'assembler'; orders packed per day)
 """
 from contextlib import contextmanager
 from datetime import date, datetime, time, timedelta, timezone
@@ -22,11 +22,10 @@ DEFAULT_LOOKUP = f"""
     FROM "past_orders" WHERE active_id::text = %s
     ORDER BY packed_at DESC NULLS LAST LIMIT 1;
 """
-_START_MS = int(datetime.combine(date.fromisoformat(START_DATE), time.min, tzinfo=IST).timestamp() * 1000)
 DEFAULT_VOLUMES = f"""
     WITH po AS (
         SELECT {_TGS} AS ts, checker AS packer, pharmacist AS assembler FROM "past_orders"
-        WHERE NULLIF("TGS"::text, 'NA')::bigint >= {_START_MS}
+        WHERE NULLIF("TGS"::text, 'NA')::bigint >= %s AND NULLIF("TGS"::text, 'NA')::bigint < %s
     )
     SELECT to_char(ts, 'YYYY-MM-DD') AS day, 'packer' AS role, lower(trim(packer)) AS person, count(*) AS orders
     FROM po WHERE packer IS NOT NULL GROUP BY 1, 3
@@ -34,6 +33,11 @@ DEFAULT_VOLUMES = f"""
     SELECT to_char(ts, 'YYYY-MM-DD'), 'assembler', lower(trim(assembler)), count(*)
     FROM po WHERE assembler IS NOT NULL GROUP BY 1, 3;
 """
+
+
+def _ms(d: date) -> int:
+    """Midnight (IST) at the start of day d, in epoch milliseconds (the unit of the TGS column)."""
+    return int(datetime.combine(d, time.min, tzinfo=IST).timestamp() * 1000)
 
 
 def _sql(name, default):
@@ -105,11 +109,19 @@ def normalise_volumes(df: pd.DataFrame) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
-@st.cache_data(ttl=3600, show_spinner="Counting orders per person from the database...")
-def load_volumes() -> pd.DataFrame:
+@st.cache_data(ttl=600, show_spinner="Counting orders per person from the database...")
+def load_volumes(start: date, end: date) -> pd.DataFrame:
+    """Orders packed per day / role / person, only for start..end (inclusive), so a small range is a small query."""
+    custom = (st.secrets.get("sql", {}) or {}).get("volumes")
     with _conn() as conn, conn.cursor() as cur:
-        cur.execute(_sql("volumes", DEFAULT_VOLUMES))
+        if custom:   # a hand-written query in secrets runs as-is (no date parameters); filtered below
+            cur.execute(custom)
+        else:
+            cur.execute(DEFAULT_VOLUMES, (_ms(start), _ms(end + timedelta(days=1))))
         rows = cur.fetchall()
     v = pd.DataFrame(rows, columns=["day", "role", "person", "orders"])
     v["orders"] = pd.to_numeric(v["orders"])
+    if custom:
+        d = pd.to_datetime(v["day"]).dt.date
+        v = v[(d >= start) & (d <= end)]
     return v
