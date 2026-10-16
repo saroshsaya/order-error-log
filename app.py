@@ -85,9 +85,9 @@ with tab_log:
                 with st.spinner("Looking up order…"):
                     info = db.lookup_order(order_id)
                 if info is None:
-                    st.warning("Order not found in Samasya. Enter the packer / assembler manually.")
+                    st.warning("Order not found in Samasya. Check the order ID for a typo, or enter the packer / assembler below.")
             except Exception as e:  # never show secrets; never block logging because the database is down
-                st.warning(f"Could not reach Samasya ({type(e).__name__}). Enter the packer / assembler manually.")
+                st.warning(f"Could not reach Samasya ({type(e).__name__}). Enter the packer / assembler below.")
 
         prior = sheets.order_entries(order_id) if order_id.isdigit() else pd.DataFrame()
         if len(prior):
@@ -96,8 +96,16 @@ with tab_log:
                                 for r in prior.itertuples()))
 
         c1, c2 = st.columns(2)
-        packer = c1.text_input("Packer", value=(info or {}).get("packer") or "", key=f"p{n}{order_id}")
-        assembler = c2.text_input("Assembler", value=(info or {}).get("assembler") or "", key=f"a{n}{order_id}")
+        if info:   # found in Samasya: filled automatically, nothing to type
+            packer = (info.get("packer") or "").strip()
+            assembler = (info.get("assembler") or "").strip()
+            c1.markdown(f"**Packer**  \n{A.name_of(packer) or packer or '-'}")
+            c2.markdown(f"**Assembler**  \n{A.name_of(assembler) or assembler or '-'}")
+        elif order_id.isdigit():   # not found (typo, or Samasya unreachable): allow typing them
+            packer = c1.text_input("Packer (login email)", key=f"p{n}{order_id}").strip()
+            assembler = c2.text_input("Assembler (login email)", key=f"a{n}{order_id}").strip()
+        else:
+            packer = assembler = ""
         if info and info.get("packed_at"):
             st.caption(f"Packed: {info['packed_at']:%d %b %Y, %I:%M %p}"
                        + (f"  ·  {info['n_items']} item(s) on this order" if info.get("n_items") else ""))
@@ -135,7 +143,7 @@ with tab_log:
             if not how: problems.append("Choose how it was caught.")
             if not desc.strip(): problems.append("Describe what went wrong.")
             if not logged_by: problems.append("Enter who is logging this.")
-            if category == "Internal" and not (packer.strip() or assembler.strip()):
+            if category == "Internal" and not (packer or assembler):
                 problems.append("Packer / assembler missing.")
             if order_id.isdigit() and reason and len(sheets.duplicates(order_id, reason, drugs)):
                 problems.append("This same mistake is already logged for this order. It counts once, so it was not added.")
