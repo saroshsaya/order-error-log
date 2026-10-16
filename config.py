@@ -3,7 +3,6 @@
 COLUMNS = [
     "submitted_at",      # when Submit was pressed (IST)
     "logged_by",
-    "date_reported",     # date the error was detected / reported
     "how_caught",
     "order_id",
     "packed_at",         # packing timestamp (TGS) from Samasya - errors are counted in this month

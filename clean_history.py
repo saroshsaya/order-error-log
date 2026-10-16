@@ -138,7 +138,6 @@ def main(xlsx, extract, dst):
         pp, ap = C.points(cat, reason, 1) if cat else (0, 0)
         kept.append({
             "submitted_at": "", "logged_by": "imported",
-            "date_reported": rep.strftime("%Y-%m-%d") if rep else "",
             "how_caught": C.IMPORTED, "order_id": oid,
             "packed_at": packed.strftime("%Y-%m-%d %H:%M:%S") if packed else "",
             "packer": p, "assembler": a, "category": cat, "reason": reason,

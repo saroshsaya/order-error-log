@@ -121,7 +121,6 @@ with tab_log:
             st.caption(f"Effect on score: packer −{pp} · assembler −{ap}" if (pp or ap) else "No points deducted.")
 
         how = st.selectbox("How was it caught?", C.HOW_CAUGHT, index=None, placeholder="Choose…", key=f"hw{n}")
-        reported_on = st.date_input("Date reported", value=date.today(), max_value=date.today(), key=f"dr{n}")
         desc = st.text_area("Describe what went wrong", key=f"ds{n}", height=100,
                             help="What the customer reported and what the camera showed.")
         execs = list(st.secrets.get("executives", []))
@@ -147,7 +146,7 @@ with tab_log:
                 try:
                     sheets.append_error({
                         "submitted_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
-                        "logged_by": logged_by, "date_reported": reported_on.isoformat(), "how_caught": how,
+                        "logged_by": logged_by, "how_caught": how,
                         "order_id": order_id,
                         "packed_at": f"{info['packed_at']:%Y-%m-%d %H:%M:%S}" if info and info.get("packed_at") else "",
                         "packer": packer.strip().lower(), "assembler": assembler.strip().lower(),
@@ -213,8 +212,7 @@ with tab_logs:
             df = None
         if df is not None:
             f1, f2 = st.columns([1, 3])
-            basis = f1.radio("Filter dates by", ["Date reported", "Packed on"], key="lg_basis")
-            col = "date_reported" if basis == "Date reported" else "packed_at"
+            col = "packed_at"
             rng = date_range("lg", "Dates", START, date.today())
             if rng:
                 s, e = rng
@@ -228,7 +226,7 @@ with tab_logs:
                 d = A.search(d, q).sort_values(col, ascending=False)
                 st.caption(f"{len(d)} entr{'y' if len(d) == 1 else 'ies'} · read-only. Open one below to see everything about it.")
                 view = d.assign(packer=d["packer"].map(A.name_of), assembler=d["assembler"].map(A.name_of))[
-                    ["order_id", "packed_at", "date_reported", "category", "reason", "packer", "assembler", "mistakes",
+                    ["order_id", "packed_at", "category", "reason", "packer", "assembler", "mistakes",
                      "packer_points", "assembler_points", "reversed", "logged_by"]]
                 st.dataframe(view, use_container_width=True, hide_index=True)
                 st.download_button("Download these rows (CSV)", d.drop(columns=["sheet_row"]).to_csv(index=False).encode(),
@@ -247,7 +245,7 @@ with tab_logs:
                                f"**Packer** {A.name_of(r.packer)} ({r.packer})  \n**Assembler** {A.name_of(r.assembler)} ({r.assembler})")
                     b.markdown(f"**Type** {r.category} - {r.reason}  \n**Drugs** {r.drugs_affected or '-'} · **mistakes** {int(r.mistakes)}  \n"
                                f"**Points** packer {int(r.packer_points)}, assembler {int(r.assembler_points)}  \n"
-                               f"**Caught by** {r.how_caught}, reported {fd(r.date_reported)}  \n"
+                               f"**Caught by** {r.how_caught}  \n"
                                f"**Logged by** {r.logged_by} at {r.submitted_at or '-'}")
                     st.markdown(f"**Description:** {r.description}")
                     if r.needs_review:

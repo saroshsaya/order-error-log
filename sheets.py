@@ -42,7 +42,6 @@ def load_errors() -> pd.DataFrame:
     for c in ("packer_points", "assembler_points", "mistakes"):
         df[c] = pd.to_numeric(df[c], errors="coerce").fillna(0)
     df["packed_at"] = pd.to_datetime(df["packed_at"], errors="coerce")
-    df["date_reported"] = pd.to_datetime(df["date_reported"], errors="coerce")
     return df
 
 
