@@ -109,6 +109,26 @@ def accuracy_chart(t: pd.DataFrame, title: str):
     st.caption(f"The axis starts at {lo}%, not 0, so the differences are visible.")
 
 
+# ----------------------------------------------------------------- people dropdown (packer / assembler)
+PEOPLE = {}    # display name -> login email; add new people to LOGIN_NAMES in config.py
+for _login, _name in C.LOGIN_NAMES.items():
+    if _login not in C.EXCLUDED:
+        PEOPLE.setdefault(_name, _login)
+
+
+def person_picker(col, label: str, known_login: str, key: str) -> str:
+    """Dropdown of names. Returns that person's login email ('' if nobody is chosen). A login Samasya gave us that is
+    not in the list is added so it stays selectable."""
+    options = dict(PEOPLE)
+    if known_login and known_login not in options.values():
+        options[A.name_of(known_login)] = known_login
+    names = sorted(options)
+    current = next((n for n, l in options.items() if l == known_login), None)
+    pick = col.selectbox(label, names, index=names.index(current) if current else None,
+                         placeholder="Choose a name…", key=key)
+    return options.get(pick, "")
+
+
 # ----------------------------------------------------------------- entries logged before the order was packed
 def resolved(df: pd.DataFrame) -> pd.DataFrame:
     """Fill in the packing time / packer / assembler of entries logged while the order was not yet in Samasya
@@ -192,10 +212,10 @@ with tab_log:
                 with st.spinner("Looking up order…"):
                     info = db.lookup_order(order_id)
                 if info is None:
-                    st.warning("Order not found in Samasya (it may still be being packed). Check the order ID for a typo, or enter the packer / assembler below. "
+                    st.warning("Order not found in Samasya (it may still be being packed). Check the order ID for a typo, or choose the packer / assembler below. "
                                "If the order shows up later, the entry is filled in and counted automatically.")
             except Exception as e:  # never show secrets; never block logging because the database is down
-                st.warning(f"Could not reach Samasya ({type(e).__name__}). Enter the packer / assembler below.")
+                st.warning(f"Could not reach Samasya ({type(e).__name__}). Choose the packer / assembler below.")
 
         prior = sheets.order_entries(order_id) if order_id.isdigit() else pd.DataFrame()
         if len(prior):
@@ -212,8 +232,8 @@ with tab_log:
         elif order_id.isdigit():   # not found (typo / still being packed / Samasya unreachable) or no people recorded: type them
             if info:
                 st.caption("This order has no packer / assembler recorded (it may have been cancelled before packing).")
-            packer = c1.text_input("Packer (login email)", value=packer, key=f"p{n}{order_id}").strip()
-            assembler = c2.text_input("Assembler (login email)", value=assembler, key=f"a{n}{order_id}").strip()
+            packer = person_picker(c1, "Packer", packer, f"p{n}{order_id}")
+            assembler = person_picker(c2, "Assembler", assembler, f"a{n}{order_id}")
         if info and info.get("packed_at"):
             st.caption(f"Packed: {info['packed_at']:%d %b %Y, %I:%M %p}"
                        + (f"  ·  {info['n_items']} item(s) on this order" if info.get("n_items") else ""))
