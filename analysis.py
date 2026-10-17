@@ -52,6 +52,36 @@ def active(df):
     return a
 
 
+def _needs_order(df):
+    """Live entries that lack a packing time or a packer / assembler (order not found when it was logged)."""
+    return (df["reversed"] != "Yes") & (df["order_id"].astype(str).str.strip() != "") & (
+        df["packed_at"].isna() | _missing(df["packer"]) | _missing(df["assembler"]))
+
+
+def unresolved_ids(df):
+    """Order ids of the entries that still need their packing time / people looked up (sorted, as a tuple)."""
+    return tuple(sorted(set(df.loc[_needs_order(df), "order_id"].astype(str).str.strip())))
+
+
+def fill_from_orders(df, info):
+    """Fill a missing packing time / packer / assembler from `info` (order_id, packer, assembler, packed_at rows
+    looked up in Samasya). Values already on the entry are never overwritten."""
+    if info is None or len(info) == 0:
+        return df
+    inf = info.drop_duplicates("order_id").set_index("order_id")
+    d = df.copy()
+    rows = _needs_order(d)
+    key = d.loc[rows, "order_id"].astype(str).str.strip()
+    for col in ("packed_at", "packer", "assembler"):
+        found = key.map(inf[col])
+        if col == "packed_at":
+            d.loc[rows, col] = d.loc[rows, col].where(d.loc[rows, col].notna(), pd.to_datetime(found, errors="coerce"))
+        else:
+            gap = _missing(d.loc[rows, col])
+            d.loc[rows, col] = d.loc[rows, col].where(~gap, found.fillna("").astype(str))
+    return d
+
+
 def _not_excluded(series, exclude):
     ex = {str(x).strip().lower() for x in exclude}
     return ~series.astype(str).str.strip().str.lower().isin(ex)

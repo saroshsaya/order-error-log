@@ -133,3 +133,22 @@ def test_score_follows_the_current_rules_for_old_and_new_entries():
     assert list(new["packer_points"]) == [3, 3, 0] and list(new["assembler_points"]) == [0, 1.5, 0]
     assert C.points("Internal", "Wrong label / wrong order labelled", 4, rules) == (3, 0)   # still once per order
     assert A.score(df.iloc[0:0]).empty                                                      # empty log is fine
+
+
+def test_entries_logged_before_the_order_exists_get_filled_in_later():
+    df = _df([{"order_id": "1", "packed_at": "2026-03-02", "packer": "a@x.com", "assembler": "b@x.com"},      # complete
+              {"order_id": "2", "packed_at": "", "packer": "", "assembler": ""},                              # found later
+              {"order_id": "3", "packed_at": "", "packer": "c@x.com", "assembler": ""},                       # names partly typed
+              {"order_id": "4", "packed_at": "", "packer": "", "assembler": ""},                              # typo, never found
+              {"order_id": "5", "packed_at": "", "packer": "", "assembler": "", "reversed": "Yes"}])          # reversed: ignored
+    assert A.unresolved_ids(df) == ("2", "3", "4")
+    info = pd.DataFrame({"order_id": ["1", "2", "3"], "packer": ["zz@x.com", "p@x.com", "other@x.com"],
+                         "assembler": ["zz@x.com", "q@x.com", "r@x.com"],
+                         "packed_at": pd.to_datetime(["2026-01-01", "2026-03-05", "2026-03-06"])})
+    out = A.fill_from_orders(df, info).set_index("order_id")
+    assert out.loc["1", "packer"] == "a@x.com" and out.loc["1", "packed_at"] == pd.Timestamp("2026-03-02")   # never overwritten
+    assert (out.loc["2", "packer"], out.loc["2", "assembler"], out.loc["2", "packed_at"]) == ("p@x.com", "q@x.com", pd.Timestamp("2026-03-05"))
+    assert out.loc["3", "packer"] == "c@x.com" and out.loc["3", "assembler"] == "r@x.com"                    # keeps what was typed
+    assert pd.isna(out.loc["4", "packed_at"]) and out.loc["4", "packer"] == ""                                 # still unknown
+    assert A.unresolved_ids(A.fill_from_orders(df, info)) == ("4",)
+    assert A.fill_from_orders(df, pd.DataFrame(columns=info.columns)).equals(df)                              # nothing found

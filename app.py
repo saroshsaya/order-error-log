@@ -21,6 +21,14 @@ def fd(x, fmt="%d %b %Y"):
 
 
 START = date.fromisoformat(C.START_DATE)
+
+
+def today_ist() -> date:
+    """Today's date in India. The server runs on UTC, which is a day behind between 00:00 and 05:30 IST."""
+    return datetime.now(IST).date()
+
+
+
 st.set_page_config(page_title="Order Error Log", page_icon="📦", layout="wide", initial_sidebar_state="collapsed")
 
 
@@ -45,7 +53,7 @@ def gate(secret_key: str, label: str, state_key: str, widget_key: str) -> bool:
 # ----------------------------------------------------------------- date filter with a Load button
 def date_range(key: str, label: str, lo: date, hi: date):
     """Presets + custom dates -> (start, end) inclusive, or None until a period is chosen."""
-    today = date.today()
+    today = today_ist()
     first = today.replace(day=1)
     presets = {"This month": (first, today),
                "Last month": ((first - timedelta(days=1)).replace(day=1), first - timedelta(days=1)),
@@ -70,7 +78,7 @@ def date_range(key: str, label: str, lo: date, hi: date):
 
 def load_range(key: str, label: str):
     """Date choice + a Load button. Returns the (start, end) that was last LOADED, or None."""
-    rng = date_range(key, label, START, date.today())
+    rng = date_range(key, label, START, today_ist())
     if st.button("Load", type="primary", key=f"{key}_load", disabled=rng is None):
         st.session_state[f"{key}_loaded"] = rng
     loaded = st.session_state.get(f"{key}_loaded")
@@ -99,6 +107,16 @@ def accuracy_chart(t: pd.DataFrame, title: str):
     st.subheader(title)
     st.altair_chart((bars + labels).properties(height=alt.Step(34)), use_container_width=True)
     st.caption(f"The axis starts at {lo}%, not 0, so the differences are visible.")
+
+
+# ----------------------------------------------------------------- entries logged before the order was packed
+def resolved(df: pd.DataFrame) -> pd.DataFrame:
+    """Fill in the packing time / packer / assembler of entries logged while the order was not yet in Samasya
+    (still being packed, or a typo later corrected). Looked up when the page loads; the sheet itself is not changed."""
+    try:
+        return A.fill_from_orders(df, db.lookup_many(A.unresolved_ids(df)))
+    except Exception:   # database unreachable: show the entries as they are
+        return df
 
 
 # ----------------------------------------------------------------- points rules + Settings panel
@@ -174,7 +192,8 @@ with tab_log:
                 with st.spinner("Looking up order…"):
                     info = db.lookup_order(order_id)
                 if info is None:
-                    st.warning("Order not found in Samasya. Check the order ID for a typo, or enter the packer / assembler below.")
+                    st.warning("Order not found in Samasya (it may still be being packed). Check the order ID for a typo, or enter the packer / assembler below. "
+                               "If the order shows up later, the entry is filled in and counted automatically.")
             except Exception as e:  # never show secrets; never block logging because the database is down
                 st.warning(f"Could not reach Samasya ({type(e).__name__}). Enter the packer / assembler below.")
 
@@ -185,16 +204,16 @@ with tab_log:
                                 for r in prior.itertuples()))
 
         c1, c2 = st.columns(2)
-        if info:   # found in Samasya: filled automatically, nothing to type
-            packer = (info.get("packer") or "").strip()
-            assembler = (info.get("assembler") or "").strip()
-            c1.markdown(f"**Packer**  \n{A.name_of(packer) or packer or '-'}")
-            c2.markdown(f"**Assembler**  \n{A.name_of(assembler) or assembler or '-'}")
-        elif order_id.isdigit():   # not found (typo, or Samasya unreachable): allow typing them
-            packer = c1.text_input("Packer (login email)", key=f"p{n}{order_id}").strip()
-            assembler = c2.text_input("Assembler (login email)", key=f"a{n}{order_id}").strip()
-        else:
-            packer = assembler = ""
+        packer = ((info or {}).get("packer") or "").strip()
+        assembler = ((info or {}).get("assembler") or "").strip()
+        if packer and assembler:   # found in Samasya: filled automatically, nothing to type
+            c1.markdown(f"**Packer**  \n{A.name_of(packer) or packer}")
+            c2.markdown(f"**Assembler**  \n{A.name_of(assembler) or assembler}")
+        elif order_id.isdigit():   # not found (typo / still being packed / Samasya unreachable) or no people recorded: type them
+            if info:
+                st.caption("This order has no packer / assembler recorded (it may have been cancelled before packing).")
+            packer = c1.text_input("Packer (login email)", value=packer, key=f"p{n}{order_id}").strip()
+            assembler = c2.text_input("Assembler (login email)", value=assembler, key=f"a{n}{order_id}").strip()
         if info and info.get("packed_at"):
             st.caption(f"Packed: {info['packed_at']:%d %b %Y, %I:%M %p}"
                        + (f"  ·  {info['n_items']} item(s) on this order" if info.get("n_items") else ""))
@@ -263,7 +282,7 @@ with tab_stats:
         if loaded:
             s, e = loaded
             try:
-                df, vol = A.score(sheets.load_errors(), RULES), db.load_volumes(s, e)
+                df, vol = A.score(resolved(sheets.load_errors()), RULES), db.load_volumes(s, e)
             except Exception as ex:  # readable message, never the secrets
                 st.error(f"Could not read the sheet or the database ({type(ex).__name__}). Check the secrets and the access.")
                 df = vol = None
@@ -283,6 +302,14 @@ with tab_stats:
                 st.caption("Error % = points ÷ orders handled × 100, for orders packed in the chosen dates. "
                            f"A wrong label is {lab:g} points for the packer. Reversed entries, entries with no packer or assembler, "
                            f"and executive / test logins are left out. People with under {C.LOW_VOLUME} orders are marked low volume.")
+
+                lost = df[A._needs_order(df)]
+                if len(lost):
+                    with st.expander(f"{len(lost)} entr{'y' if len(lost) == 1 else 'ies'} not counted yet (order not found in Samasya)"):
+                        st.caption("These have no packing time or no packer / assembler. Once the order appears in Samasya they are counted "
+                                   "automatically; if the order ID has a typo, reverse the entry and log it again.")
+                        st.dataframe(lost[["order_id", "category", "reason", "logged_by", "submitted_at"]],
+                                     use_container_width=True, hide_index=True)
 
                 show_low = st.checkbox(f"Include low-volume people (under {C.LOW_VOLUME} orders) in the charts", value=False, key="an_low")
                 g1, g2 = st.columns(2)
@@ -311,7 +338,7 @@ with tab_stats:
 with tab_logs:
     if gate("admin_passcode", "Admin passcode", "ok_admin", "in_admin_logs"):
         try:
-            df = A.score(sheets.load_errors(), RULES)
+            df = A.score(resolved(sheets.load_errors()), RULES)
         except Exception as ex:
             st.error(f"Could not read the sheet ({type(ex).__name__}). Check the secrets and the access.")
             df = None
@@ -323,11 +350,14 @@ with tab_logs:
                 q = s1.text_input("Filter the table", placeholder="person, reason, drug code, text…", key="lg_q")
                 cat = s2.selectbox("Type", ["All"] + C.CATEGORIES, key="lg_cat")
                 show_rev = s3.checkbox("Include reversed", value=True, key="lg_rev")
-                d = df[(df["packed_at"].dt.date >= s) & (df["packed_at"].dt.date <= e)]
+                when = df["packed_at"].fillna(pd.to_datetime(df["submitted_at"], format="mixed", errors="coerce"))   # no packing time: use the day it was logged
+                d = df[(when.dt.date >= s) & (when.dt.date <= e)]
                 if cat != "All": d = d[d["category"] == cat]
                 if not show_rev: d = d[d["reversed"] != "Yes"]
-                d = A.search(d, q).sort_values("packed_at", ascending=False)
-                st.caption(f"{len(d)} entr{'y' if len(d) == 1 else 'ies'} · read-only. To see one in full or reverse it, search its order ID below.")
+                d = A.search(d, q).assign(_when=when).sort_values("_when", ascending=False).drop(columns="_when")
+                nopack = int(d["packed_at"].isna().sum())
+                st.caption(f"{len(d)} entr{'y' if len(d) == 1 else 'ies'} · read-only. To see one in full or reverse it, search its order ID below."
+                           + (f" {nopack} {'has' if nopack == 1 else 'have'} no packing time yet (order not found in Samasya); shown by the day logged." if nopack else ""))
                 view = d.assign(packer=d["packer"].map(A.name_of), assembler=d["assembler"].map(A.name_of))[
                     ["order_id", "packed_at", "category", "reason", "packer", "assembler", "mistakes",
                      "packer_points", "assembler_points", "reversed", "logged_by"]]
