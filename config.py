@@ -93,6 +93,7 @@ LOGIN_NAMES = {
     "nanduraj4848@gmail.com": "Nandu",
     "dmg@saya.net.in": "Dhruv",
     "ay9936370@gmail.com": "Anurag",
+    "ashutosh220798@gmail.com": "Ashutosh",
 }
 
 START_DATE = "2026-01-01"       # error % is calculated for orders packed from this date
@@ -107,4 +108,5 @@ EXCLUDED = {
     "krishnagptamcs@gmail.com",
     "soni92chaubey@gmail.com",
     "anaschoudhary200084@gmail.com",
+    "ashutosh220798@gmail.com",
 }
