@@ -17,13 +17,24 @@ def _drugs(s):
     return {x.strip().lower() for x in str(s).replace(";", ",").split(",") if x.strip()}
 
 
+def _same_reason(df, order_id, reason):
+    return df[(df["order_id"] == str(order_id).strip()) & (df["reason"] == reason) & (df["reversed"] != "Yes")]
+
+
 def duplicates(df, order_id, reason, drugs):
-    """Same order + same reason + overlapping drugs (or no drugs given) = the same mistake; it counts once."""
-    d = df[(df["order_id"] == str(order_id).strip()) & (df["reason"] == reason) & (df["reversed"] != "Yes")]
+    """Entries that are definitely the SAME mistake as the one being logged (it counts once, so it is blocked):
+    same order + same reason, and the drug codes overlap - or neither entry names a drug, so they can't be told apart."""
+    d = _same_reason(df, order_id, reason)
     mine = _drugs(drugs)
-    if not mine or d.empty:
-        return d
-    return d[[(not _drugs(r)) or bool(mine & _drugs(r)) for r in d["drugs_affected"]]]
+    return d[[(not mine and not _drugs(r)) or bool(mine & _drugs(r)) for r in d["drugs_affected"]]]
+
+
+def unclear_duplicates(df, order_id, reason, drugs):
+    """Same order + same reason where only ONE of the two entries names drugs: it may or may not be the same mistake,
+    so the person logging confirms it is a different one."""
+    d = _same_reason(df, order_id, reason)
+    mine = _drugs(drugs)
+    return d[[bool(mine) != bool(_drugs(r)) for r in d["drugs_affected"]]]
 
 
 _MISSING = {"", "nan", "none", "not mentioned", "-", "na", "n/a"}

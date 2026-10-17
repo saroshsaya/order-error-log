@@ -256,6 +256,19 @@ with tab_log:
             pp, ap = C.points(category, reason, mistakes, RULES)
             st.caption(f"Effect on score: packer −{pp:g} · assembler −{ap:g}" if (pp or ap) else "No points deducted.")
 
+        same, maybe = pd.DataFrame(), pd.DataFrame()
+        if order_id.isdigit() and reason:
+            same = sheets.duplicates(order_id, reason, drugs)
+            maybe = sheets.unclear_duplicates(order_id, reason, drugs) if same.empty else maybe
+        different = False
+        if len(same):
+            st.warning("This looks like the same mistake as one already logged for this order, so it would count only once. "
+                       "If it is a different mistake, change the reason or add the drug code(s) that were wrong.")
+        elif len(maybe):
+            st.warning("This order already has an entry with the same reason, and only one of the two names the drugs, "
+                       "so they can't be told apart.")
+            different = st.checkbox("This is a different mistake from the earlier entry", key=f"diff{n}")
+
         how = st.selectbox("How was it caught?", C.HOW_CAUGHT, index=None, placeholder="Choose…", key=f"hw{n}")
         desc = st.text_area("Describe what went wrong", key=f"ds{n}", height=100,
                             help="What the customer reported and what the camera showed.")
@@ -272,8 +285,11 @@ with tab_log:
             if not logged_by: problems.append("Enter who is logging this.")
             if category == "Internal" and not (packer or assembler):
                 problems.append("Packer / assembler missing.")
-            if order_id.isdigit() and reason and len(sheets.duplicates(order_id, reason, drugs)):
-                problems.append("This same mistake is already logged for this order. It counts once, so it was not added.")
+            if len(same):
+                problems.append("This same mistake is already logged for this order. It counts once, so it was not added. "
+                                "If it is a different mistake, change the reason or add the drug code(s) that were wrong.")
+            elif len(maybe) and not different:
+                problems.append("Tick the box to confirm this is a different mistake from the earlier entry.")
             if problems:
                 for p in problems: st.error(p)
             else:

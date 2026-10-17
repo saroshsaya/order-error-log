@@ -40,7 +40,8 @@ def test_duplicates_same_mistake_counts_once():
     assert len(A.duplicates(df, "1", "Wrong drug packed", "dc 12")) == 1
     assert len(A.duplicates(df, "1", "Wrong drug packed", "DC 99")) == 0     # different drug = new mistake
     assert len(A.duplicates(df, "1", "Missing quantity", "DC 12")) == 0      # different reason = new mistake
-    assert len(A.duplicates(df, "1", "Wrong drug packed", "")) == 1          # no drug given = same mistake
+    assert len(A.duplicates(df, "1", "Wrong drug packed", "")) == 0          # no drug given but the earlier one has some: ask, don't block
+    assert len(A.unclear_duplicates(df, "1", "Wrong drug packed", "")) == 1
     df.loc[0, "reversed"] = "Yes"
     assert len(A.duplicates(df, "1", "Wrong drug packed", "DC 12")) == 0     # reversed entries don't block
 
@@ -152,3 +153,15 @@ def test_entries_logged_before_the_order_exists_get_filled_in_later():
     assert pd.isna(out.loc["4", "packed_at"]) and out.loc["4", "packer"] == ""                                 # still unknown
     assert A.unresolved_ids(A.fill_from_orders(df, info)) == ("4",)
     assert A.fill_from_orders(df, pd.DataFrame(columns=info.columns)).equals(df)                              # nothing found
+
+
+def test_second_entry_on_the_same_order():
+    none = _df([{"order_id": "1", "reason": "Wrong drug packed"}])                          # earlier entry names no drug
+    assert len(A.duplicates(none, "1", "Wrong drug packed", "")) == 1                      # neither names a drug: same mistake, blocked
+    assert len(A.duplicates(none, "1", "Wrong drug packed", "DC 55")) == 0                 # new one names a drug: not blocked...
+    assert len(A.unclear_duplicates(none, "1", "Wrong drug packed", "DC 55")) == 1         # ...but the person confirms it is different
+    assert len(A.unclear_duplicates(none, "1", "Wrong drug packed", "")) == 0
+    assert len(A.duplicates(none, "1", "Packed correctly - footage checked", "")) == 0     # Internal then External: always fine
+    assert len(A.unclear_duplicates(none, "1", "Packed correctly - footage checked", "")) == 0
+    one = _df([{"order_id": "1", "reason": "Wrong drug packed", "drugs_affected": "DC 12"}])
+    assert len(A.duplicates(one, "1", "Wrong drug packed", "DC 55")) == 0 and len(A.unclear_duplicates(one, "1", "Wrong drug packed", "DC 55")) == 0

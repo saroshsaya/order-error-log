@@ -68,6 +68,10 @@ def duplicates(order_id: str, reason: str, drugs: str) -> pd.DataFrame:
     return analysis.duplicates(load_errors(), order_id, reason, drugs)
 
 
+def unclear_duplicates(order_id: str, reason: str, drugs: str) -> pd.DataFrame:
+    return analysis.unclear_duplicates(load_errors(), order_id, reason, drugs)
+
+
 def order_entries(order_id: str) -> pd.DataFrame:
     df = load_errors()
     return df[df["order_id"] == str(order_id).strip()]
