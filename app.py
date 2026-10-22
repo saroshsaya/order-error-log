@@ -314,7 +314,7 @@ with tab_log:
 # ================================================================= TAB 2: analytics
 with tab_stats:
     if gate("admin_passcode", "Admin passcode", "ok_admin", "in_admin_stats"):
-        loaded = load_range("an", "Packed in")
+        loaded = load_range("an", "Logged in")
         if loaded:
             s, e = loaded
             try:
@@ -328,22 +328,23 @@ with tab_stats:
                 act = A.active(df)
                 tp, ta = A.person_table(act, vol, "packer", s, e), A.person_table(act, vol, "assembler", s, e)
                 inx = act[(act["day"] >= s) & (act["day"] <= e)]
-                st.markdown(f"**Showing orders packed {s:%d %b %Y} to {e:%d %b %Y}**")
+                st.markdown(f"**Showing {s:%d %b %Y} to {e:%d %b %Y}**")
                 m1, m2, m3, m4 = st.columns(4)
                 m1.metric("Packer error %", f"{A.team_error_pct(tp):.2f}")
                 m2.metric("Assembler error %", f"{A.team_error_pct(ta):.2f}")
                 m3.metric("Internal entries", int((inx["category"] == "Internal").sum()))
                 m4.metric("Unknown (no penalty)", int((inx["category"] == "Unknown").sum()))
                 lab = RULES["Internal"]["Wrong label / wrong order labelled"]["p"]
-                st.caption("Error % = points ÷ orders handled × 100, for orders packed in the chosen dates. "
+                st.caption("Error % = points ÷ orders handled × 100. Errors count on the day they were logged; orders count on the "
+                           "day they were packed, both inside the chosen dates. "
                            f"A wrong label is {lab:g} points for the packer. Reversed entries, entries with no packer or assembler, "
                            f"and executive / test logins are left out. People with under {C.LOW_VOLUME} orders are marked low volume.")
 
-                lost = df[A._needs_order(df)]
+                lost = A.uncounted(df)
                 if len(lost):
-                    with st.expander(f"{len(lost)} entr{'y' if len(lost) == 1 else 'ies'} not counted yet (order not found in Samasya)"):
-                        st.caption("These have no packing time or no packer / assembler. Once the order appears in Samasya they are counted "
-                                   "automatically; if the order ID has a typo, reverse the entry and log it again.")
+                    with st.expander(f"{len(lost)} entr{'y' if len(lost) == 1 else 'ies'} not counted (no packer or assembler)"):
+                        st.caption("These have no packer or no assembler. If the order appears in Samasya later they are filled in and "
+                                   "counted automatically; if the order ID has a typo, reverse the entry and log it again.")
                         st.dataframe(lost[["order_id", "category", "reason", "logged_by", "submitted_at"]],
                                      use_container_width=True, hide_index=True)
 
@@ -379,23 +380,22 @@ with tab_logs:
             st.error(f"Could not read the sheet ({type(ex).__name__}). Check the secrets and the access.")
             df = None
         if df is not None:
-            loaded = load_range("lg", "Packed in")
+            loaded = load_range("lg", "Logged in")
             if loaded:
                 s, e = loaded
                 s1, s2, s3 = st.columns([2, 1, 1])
                 q = s1.text_input("Filter the table", placeholder="person, reason, drug code, text…", key="lg_q")
                 cat = s2.selectbox("Type", ["All"] + C.CATEGORIES, key="lg_cat")
                 show_rev = s3.checkbox("Include reversed", value=True, key="lg_rev")
-                when = df["packed_at"].fillna(pd.to_datetime(df["submitted_at"], format="mixed", errors="coerce"))   # no packing time: use the day it was logged
+                when = A.logged_at(df)
                 d = df[(when.dt.date >= s) & (when.dt.date <= e)]
                 if cat != "All": d = d[d["category"] == cat]
                 if not show_rev: d = d[d["reversed"] != "Yes"]
                 d = A.search(d, q).assign(_when=when).sort_values("_when", ascending=False).drop(columns="_when")
-                nopack = int(d["packed_at"].isna().sum())
-                st.caption(f"{len(d)} entr{'y' if len(d) == 1 else 'ies'} · read-only. To see one in full or reverse it, search its order ID below."
-                           + (f" {nopack} {'has' if nopack == 1 else 'have'} no packing time yet (order not found in Samasya); shown by the day logged." if nopack else ""))
+                st.caption(f"{len(d)} entr{'y' if len(d) == 1 else 'ies'}, newest logged first · read-only. "
+                           "To see one in full or reverse it, search its order ID below.")
                 view = d.assign(packer=d["packer"].map(A.name_of), assembler=d["assembler"].map(A.name_of))[
-                    ["order_id", "packed_at", "category", "reason", "packer", "assembler", "mistakes",
+                    ["order_id", "submitted_at", "packed_at", "category", "reason", "packer", "assembler", "mistakes",
                      "packer_points", "assembler_points", "reversed", "logged_by"]]
                 st.dataframe(view, use_container_width=True, hide_index=True)
                 st.download_button("Download these rows (CSV)", d.drop(columns=["sheet_row"]).to_csv(index=False).encode(),

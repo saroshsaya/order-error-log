@@ -1,6 +1,7 @@
 """Numbers behind the Analytics and Logs tabs: pure pandas, no Streamlit, no database.
 
-Error % = points / orders handled x 100, over orders PACKED between two dates (TGS).
+Error % = points / orders handled x 100. Errors are counted by the day they were LOGGED; orders handled by the day they
+were PACKED (TGS), both inside the chosen dates.
 vol = long table of orders handled: columns day (YYYY-MM-DD), role (packer / assembler), person, orders.
 """
 import pandas as pd
@@ -54,13 +55,26 @@ def score(df, rules=None):
     return d
 
 
+def logged_at(df):
+    """When each entry was logged: the date an error counts in (incentives are paid monthly, so a complaint found late
+    counts in the month it is logged). Imported history carries the old sheet's complaint date here. An entry with no
+    logging date falls back to its packing time."""
+    return pd.to_datetime(df["submitted_at"], format="mixed", errors="coerce").fillna(df["packed_at"])
+
+
 def active(df):
-    """Entries that count: not reversed, with a packing time and with BOTH a packer and an assembler named.
-    Adds the packing date as `day`."""
-    keep = (df["reversed"] != "Yes") & df["packed_at"].notna() & ~_missing(df["packer"]) & ~_missing(df["assembler"])
+    """Entries that count: not reversed, with BOTH a packer and an assembler named and a date they were logged.
+    Adds that logging date as `day` (orders handled are still counted by packing date)."""
+    when = logged_at(df)
+    keep = (df["reversed"] != "Yes") & when.notna() & ~_missing(df["packer"]) & ~_missing(df["assembler"])
     a = df[keep].copy()
-    a["day"] = a["packed_at"].dt.date
+    a["day"] = when[keep].dt.date
     return a
+
+
+def uncounted(df):
+    """Live entries that cannot be counted because the packer or the assembler is missing."""
+    return df[(df["reversed"] != "Yes") & (_missing(df["packer"]) | _missing(df["assembler"]))]
 
 
 def _needs_order(df):

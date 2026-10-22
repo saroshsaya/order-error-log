@@ -2,7 +2,7 @@
 
 Three tabs:
 1. **Log an error** (team passcode): order ID -> packer / assembler / packing time fill in from Samasya; pick Internal / External / Unknown, the specific reason, drugs affected, description.
-2. **Analytics** (admin passcode): error % and accuracy % per packer and assembler for any date range (by packing date), by month, by reason.
+2. **Analytics** (admin passcode): error % and accuracy % per packer and assembler for any date range (errors by the day logged, orders by the day packed), by month, by reason.
 3. **Logs** (admin passcode): read-only list with date filter (reported or packed), search and type filter. Open one entry to see everything, and reverse it if an appeal is accepted (the row stays, its points stop counting). Entries cannot be edited.
 
 ## Rules (edit in config.py)
@@ -10,7 +10,7 @@ Three tabs:
 - Wrong label / non-English address not held back: 2 points to the packer (once per order).
 - "Assembly error caught by packer at packing": 1 point per wrong drug to the assembler only.
 - External (our packing was fine) and Unknown (could not verify): no points.
-- Error % = points / orders handled x 100 for orders packed in the chosen dates. Accuracy % = 100 - error %.
+- Error % = points / orders handled x 100 over the chosen dates: errors count on the day they were logged, orders on the day they were packed. Accuracy % = 100 - error %.
 - The same mistake on the same order counts once; a different mistake on the same order is a new entry.
 
 ## Run locally

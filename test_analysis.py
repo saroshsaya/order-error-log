@@ -165,3 +165,18 @@ def test_second_entry_on_the_same_order():
     assert len(A.unclear_duplicates(none, "1", "Packed correctly - footage checked", "")) == 0
     one = _df([{"order_id": "1", "reason": "Wrong drug packed", "drugs_affected": "DC 12"}])
     assert len(A.duplicates(one, "1", "Wrong drug packed", "DC 55")) == 0 and len(A.unclear_duplicates(one, "1", "Wrong drug packed", "DC 55")) == 0
+
+
+def test_errors_count_on_logged_day_not_packed_day():
+    import datetime as dt
+    import pandas as pd
+    import analysis as A
+    df = pd.DataFrame({
+        "submitted_at": ["2026-09-03 10:00:00", "2026-08-30", ""],
+        "packed_at": pd.to_datetime(["2026-08-20", "2026-08-25", "2026-08-10"]),
+        "packer": ["a@x.com", "a@x.com", ""], "assembler": ["b@x.com", "b@x.com", "b@x.com"],
+        "reversed": ["", "", ""],
+    })
+    act = A.active(df)
+    assert list(act["day"]) == [dt.date(2026, 9, 3), dt.date(2026, 8, 30)]
+    assert len(A.uncounted(df)) == 1
