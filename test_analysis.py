@@ -180,3 +180,10 @@ def test_errors_count_on_logged_day_not_packed_day():
     act = A.active(df)
     assert list(act["day"]) == [dt.date(2026, 9, 3), dt.date(2026, 8, 30)]
     assert len(A.uncounted(df)) == 1
+
+
+def test_how_caught_options_follow_the_reason():
+    import config as C
+    assert C.how_options(C.PACKER_CATCH_REASON) == [C.CAUGHT_BY_PACKER]
+    other = C.how_options("Wrong drug packed")
+    assert C.CAUGHT_BY_PACKER not in other and len(other) == 3

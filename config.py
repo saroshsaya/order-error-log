@@ -30,6 +30,15 @@ HOW_CAUGHT = [
     "Reported by packer at packing",
 ]
 IMPORTED = "Imported from old sheet"
+CAUGHT_BY_PACKER = "Reported by packer at packing"
+PACKER_CATCH_REASON = "Assembly error caught by packer at packing"
+
+
+def how_options(reason):
+    """'How was it caught?' choices for a reason: the packer catch only goes with the packer-catch reason."""
+    if reason == PACKER_CATCH_REASON:
+        return [CAUGHT_BY_PACKER]
+    return [h for h in HOW_CAUGHT if h != CAUGHT_BY_PACKER]
 
 # reason -> points per mistake for (assembler, packer); fixed=True means once per order (labels)
 # Internal: verified on camera, we made the mistake. Unknown: couldn't verify -> nobody penalised.
@@ -93,7 +102,6 @@ LOGIN_NAMES = {
     "nanduraj4848@gmail.com": "Nandu",
     "dmg@saya.net.in": "Dhruv",
     "ay9936370@gmail.com": "Anurag",
-    "ashutosh220798@gmail.com": "Ashutosh",
 }
 
 START_DATE = "2026-01-01"       # error % is calculated for orders packed from this date
@@ -108,5 +116,4 @@ EXCLUDED = {
     "krishnagptamcs@gmail.com",
     "soni92chaubey@gmail.com",
     "anaschoudhary200084@gmail.com",
-    "ashutosh220798@gmail.com",
 }

@@ -269,7 +269,9 @@ with tab_log:
                        "so they can't be told apart.")
             different = st.checkbox("This is a different mistake from the earlier entry", key=f"diff{n}")
 
-        how = st.selectbox("How was it caught?", C.HOW_CAUGHT, index=None, placeholder="Choose…", key=f"hw{n}")
+        how_opts = C.how_options(reason)
+        how = st.selectbox("How was it caught?", how_opts, index=0 if len(how_opts) == 1 else None,
+                           placeholder="Choose…", key=f"hw{n}{reason}")
         desc = st.text_area("Describe what went wrong", key=f"ds{n}", height=100,
                             help="What the customer reported and what the camera showed.")
         logged_by = (st.selectbox("Logged by", EXECS, index=None, placeholder="Choose your name…", key=f"lb{n}")
