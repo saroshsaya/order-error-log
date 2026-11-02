@@ -122,4 +122,7 @@ EXCLUDED = {
 # and nothing at all if the error % is above INCENTIVE_ZERO_ABOVE.
 INCENTIVE_MAX = 1000
 INCENTIVE_LOSS_PER_PCT = 1000
-INCENTIVE_ZERO_ABOVE = 0.6
+INCENTIVE_ZERO_ABOVE = 1.0
+
+# Only these people are paid an incentive (display names from LOGIN_NAMES; Nandu's two logins count as one person).
+INCENTIVE_PEOPLE = ["Vijay", "Jitendra", "Nandu", "Akash", "Deepak", "Sunny", "Sahil", "Ritik", "Sunil", "Kartik"]

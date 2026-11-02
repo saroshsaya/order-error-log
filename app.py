@@ -378,7 +378,7 @@ with tab_stats:
 with tab_inc:
     if gate("admin_passcode", "Admin passcode", "ok_admin", "in_incentive"):
         today = today_ist()
-        months, m = [], today.replace(day=1)
+        months, m = [], (today.replace(day=1) - timedelta(days=1)).replace(day=1)   # finished months only
         while m >= START.replace(day=1):
             months.append(m)
             m = (m - timedelta(days=1)).replace(day=1)
@@ -415,7 +415,7 @@ with tab_inc:
                 st.caption(f"Incentive = {C.INCENTIVE_MAX:g} − {C.INCENTIVE_LOSS_PER_PCT:g} × error %, and nothing if the error % is above "
                            f"{C.INCENTIVE_ZERO_ABOVE:g}. Error % = (packer points + assembler points) ÷ (orders packed + orders assembled) × 100. "
                            "Errors count in the month they were logged; orders in the month they were packed. "
-                           "Reversed entries, entries with no packer or assembler, and executive / test logins are left out.")
+                           "Reversed entries and entries with no packer or assembler are left out. Only the people in INCENTIVE_PEOPLE (config.py) are listed.")
 
 # ================================================================= TAB 3: logs - read only, reversal only
 with tab_logs:

@@ -146,18 +146,21 @@ def incentive(error_pct):
     return max(0, int(round(C.INCENTIVE_MAX - C.INCENTIVE_LOSS_PER_PCT * e)))
 
 
-def incentive_table(act, vol, start, end, low_volume=C.LOW_VOLUME, exclude=C.EXCLUDED):
-    """One row per person: packing and assembling together. error % = (packer points + assembler points) /
-    (orders packed + orders assembled) x 100. Errors are counted by logged day, orders by packed day."""
+def incentive_table(act, vol, start, end, low_volume=C.LOW_VOLUME, people=C.INCENTIVE_PEOPLE):
+    """One row per person in `people` (display names): packing and assembling together. error % = (packer points +
+    assembler points) / (orders packed + orders assembled) x 100. Errors are counted by logged day, orders by packed day.
+    A person with two logins is one row."""
     a = act[(act["day"] >= start) & (act["day"] <= end)]
-    pts = a.groupby("packer")["packer_points"].sum().add(a.groupby("assembler")["assembler_points"].sum(), fill_value=0)
+    pts = (a.groupby(a["packer"].map(name_of))["packer_points"].sum()
+           .add(a.groupby(a["assembler"].map(name_of))["assembler_points"].sum(), fill_value=0))
     v = _vol(vol)
-    v = v[(v["day"] >= start) & (v["day"] <= end) & _not_excluded(v["person"], exclude)]
-    t = v.groupby("person")["orders"].sum().to_frame("orders").join(pts.rename("points")).fillna({"points": 0}).reset_index()
+    v = v[(v["day"] >= start) & (v["day"] <= end)].copy()
+    v["name"] = v["person"].map(name_of)
+    v = v[v["name"].isin(list(people))]
+    t = v.groupby("name")["orders"].sum().to_frame("orders").join(pts.rename("points")).fillna({"points": 0}).reset_index()
     t["error %"] = (t["points"] / t["orders"] * 100).round(2)
     t["accuracy %"] = (100 - t["error %"]).round(2)
     t["incentive"] = [incentive(e) for e in t["error %"]]
-    t["name"] = t["person"].map(name_of)
     t["note"] = ["low volume" if o < low_volume else "" for o in t["orders"]]
     t = t[["name", "orders", "points", "error %", "accuracy %", "incentive", "note"]]
     return t.sort_values(["incentive", "orders"], ascending=[False, False]).reset_index(drop=True)

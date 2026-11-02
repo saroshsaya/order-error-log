@@ -195,7 +195,9 @@ def test_incentive_formula():
     assert A.incentive(0.05) == 950
     assert A.incentive(0.2) == 800
     assert A.incentive(0.6) == 400
-    assert A.incentive(0.61) == 0
+    assert A.incentive(0.61) == 390
+    assert A.incentive(1.0) == 0
+    assert A.incentive(1.01) == 0
     assert A.incentive(0.604) == 400      # rounds to 0.60 first
     assert A.incentive(2) == 0
 
@@ -209,10 +211,23 @@ def test_incentive_table_combines_both_roles():
                         "packer_points": [1, 0], "assembler_points": [0, 1]})
     vol = pd.DataFrame({"day": [d] * 4, "role": ["packer", "assembler", "packer", "assembler"],
                         "person": ["a@x.com", "a@x.com", "b@x.com", "b@x.com"], "orders": [600, 400, 500, 500]})
-    t = A.incentive_table(act, vol, dt.date(2026, 10, 1), dt.date(2026, 10, 31), exclude=set())
+    t = A.incentive_table(act, vol, dt.date(2026, 10, 1), dt.date(2026, 10, 31), people=["a", "b"])
     a = t[t["name"] == "a"].iloc[0]
     assert a["points"] == 2 and a["error %"] == 0.2 and a["incentive"] == 800
     b = t[t["name"] == "b"].iloc[0]
     assert b["points"] == 0 and b["incentive"] == 1000
-    ex = A.incentive_table(act, vol, dt.date(2026, 10, 1), dt.date(2026, 10, 31), exclude={"a@x.com"})
+    ex = A.incentive_table(act, vol, dt.date(2026, 10, 1), dt.date(2026, 10, 31), people=["b"])
     assert list(ex["name"]) == ["b"]
+
+
+def test_incentive_table_merges_two_logins_and_uses_only_listed_people():
+    import datetime as dt
+    import pandas as pd
+    import analysis as A
+    d = dt.date(2026, 10, 5)
+    n1, n2, mo = "naduraj4848@gmail.com", "nanduraj4848@gmail.com", "mohitpatel639049@gmail.com"
+    act = pd.DataFrame({"day": [d], "packer": [n1], "assembler": [mo], "packer_points": [1], "assembler_points": [1]})
+    vol = pd.DataFrame({"day": [d] * 3, "role": ["packer"] * 3, "person": [n1, n2, mo], "orders": [500, 500, 900]})
+    t = A.incentive_table(act, vol, dt.date(2026, 10, 1), dt.date(2026, 10, 31))
+    assert list(t["name"]) == ["Nandu"]                      # Mohit is not on the list
+    assert t.iloc[0]["orders"] == 1000 and t.iloc[0]["points"] == 1 and t.iloc[0]["incentive"] == 900
