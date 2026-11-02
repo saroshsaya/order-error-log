@@ -1,9 +1,10 @@
 # Order Error Log
 
-Three tabs:
+Four tabs:
 1. **Log an error** (team passcode): order ID -> packer / assembler / packing time fill in from Samasya; pick Internal / External / Unknown, the specific reason, drugs affected, description.
 2. **Analytics** (admin passcode): error % and accuracy % per packer and assembler for any date range (errors by the day logged, orders by the day packed), by month, by reason.
-3. **Logs** (admin passcode): read-only list with date filter (reported or packed), search and type filter. Open one entry to see everything, and reverse it if an appeal is accepted (the row stays, its points stop counting). Entries cannot be edited.
+3. **Incentive** (admin passcode): choose a month and Load. One combined error % per executive (packing and assembling together); incentive = 1000 - 1000 x error %, and nothing above 0.6% (set in config.py).
+4. **Logs** (admin passcode): read-only list with date filter (reported or packed), search and type filter. Open one entry to see everything, and reverse it if an appeal is accepted (the row stays, its points stop counting). Entries cannot be edited.
 
 ## Rules (edit in config.py)
 - Internal (camera checked, our mistake): 1 point per wrong drug to the packer AND the assembler.

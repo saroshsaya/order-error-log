@@ -1,3 +1,4 @@
+import calendar
 import copy
 import math
 from datetime import date, datetime, timedelta
@@ -192,7 +193,7 @@ with st.sidebar:
                 st.session_state.update(set_saved=True, set_v=ver + 1)
                 st.rerun()
 
-tab_log, tab_stats, tab_logs = st.tabs(["Log an error", "Analytics", "Logs"])
+tab_log, tab_stats, tab_inc, tab_logs = st.tabs(["Log an error", "Analytics", "Incentive", "Logs"])
 
 # ================================================================= TAB 1: enter an error
 with tab_log:
@@ -372,6 +373,49 @@ with tab_stats:
                 st.dataframe(inx.groupby(["category", "reason"]).agg(entries=("order_id", "size"), packer_points=("packer_points", "sum"),
                              assembler_points=("assembler_points", "sum")).reset_index().sort_values("entries", ascending=False),
                              use_container_width=True, hide_index=True)
+
+# ================================================================= TAB: incentive (one month at a time)
+with tab_inc:
+    if gate("admin_passcode", "Admin passcode", "ok_admin", "in_incentive"):
+        today = today_ist()
+        months, m = [], today.replace(day=1)
+        while m >= START.replace(day=1):
+            months.append(m)
+            m = (m - timedelta(days=1)).replace(day=1)
+        c1, c2 = st.columns([1, 2])
+        pick = c1.selectbox("Month", months, index=None, format_func=lambda d: f"{d:%B %Y}",
+                            placeholder="Choose a month…", key="inc_month")
+        if st.button("Load", type="primary", key="inc_load", disabled=pick is None):
+            st.session_state["inc_loaded"] = pick
+        loaded = st.session_state.get("inc_loaded")
+        if loaded and pick and loaded != pick:
+            c2.caption("You changed the month. Click Load to update.")
+        if not loaded:
+            c2.caption("Choose a month, then click Load.")
+        else:
+            s = loaded
+            e = min(loaded.replace(day=calendar.monthrange(loaded.year, loaded.month)[1]), today)
+            try:
+                df, vol = A.score(resolved(sheets.load_errors()), RULES), db.load_volumes(s, e)
+            except Exception as ex:
+                st.error(f"Could not read the sheet or the database ({type(ex).__name__}). Check the secrets and the access.")
+                vol = None
+            if vol is not None and vol.empty:
+                st.info("No orders were packed in this month.")
+            elif vol is not None:
+                t = A.incentive_table(A.active(df), vol, s, e)
+                st.markdown(f"**{s:%B %Y}**" + (f" (up to {e:%d %b})" if e < s.replace(day=calendar.monthrange(s.year, s.month)[1]) else ""))
+                k1, k2, k3 = st.columns(3)
+                k1.metric("Total incentive", f"{int(t['incentive'].sum()):,}")
+                k2.metric("Executives", len(t))
+                k3.metric("Team error %", f"{t['points'].sum() / t['orders'].sum() * 100:.2f}")
+                st.dataframe(t.style.format({"orders": "{:,.0f}", "points": "{:g}", "error %": "{:.2f}",
+                                             "accuracy %": "{:.2f}", "incentive": "{:,.0f}"}),
+                             use_container_width=True, hide_index=True)
+                st.caption(f"Incentive = {C.INCENTIVE_MAX:g} − {C.INCENTIVE_LOSS_PER_PCT:g} × error %, and nothing if the error % is above "
+                           f"{C.INCENTIVE_ZERO_ABOVE:g}. Error % = (packer points + assembler points) ÷ (orders packed + orders assembled) × 100. "
+                           "Errors count in the month they were logged; orders in the month they were packed. "
+                           "Reversed entries, entries with no packer or assembler, and executive / test logins are left out.")
 
 # ================================================================= TAB 3: logs - read only, reversal only
 with tab_logs:

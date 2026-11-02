@@ -117,3 +117,9 @@ EXCLUDED = {
     "soni92chaubey@gmail.com",
     "anaschoudhary200084@gmail.com",
 }
+
+# Monthly incentive: INCENTIVE_MAX for a perfect month, minus INCENTIVE_LOSS_PER_PCT for every 1% of error,
+# and nothing at all if the error % is above INCENTIVE_ZERO_ABOVE.
+INCENTIVE_MAX = 1000
+INCENTIVE_LOSS_PER_PCT = 1000
+INCENTIVE_ZERO_ABOVE = 0.6

@@ -187,3 +187,32 @@ def test_how_caught_options_follow_the_reason():
     assert C.how_options(C.PACKER_CATCH_REASON) == [C.CAUGHT_BY_PACKER]
     other = C.how_options("Wrong drug packed")
     assert C.CAUGHT_BY_PACKER not in other and len(other) == 3
+
+
+def test_incentive_formula():
+    import analysis as A
+    assert A.incentive(0) == 1000
+    assert A.incentive(0.05) == 950
+    assert A.incentive(0.2) == 800
+    assert A.incentive(0.6) == 400
+    assert A.incentive(0.61) == 0
+    assert A.incentive(0.604) == 400      # rounds to 0.60 first
+    assert A.incentive(2) == 0
+
+
+def test_incentive_table_combines_both_roles():
+    import datetime as dt
+    import pandas as pd
+    import analysis as A
+    d = dt.date(2026, 10, 5)
+    act = pd.DataFrame({"day": [d, d], "packer": ["a@x.com", "b@x.com"], "assembler": ["b@x.com", "a@x.com"],
+                        "packer_points": [1, 0], "assembler_points": [0, 1]})
+    vol = pd.DataFrame({"day": [d] * 4, "role": ["packer", "assembler", "packer", "assembler"],
+                        "person": ["a@x.com", "a@x.com", "b@x.com", "b@x.com"], "orders": [600, 400, 500, 500]})
+    t = A.incentive_table(act, vol, dt.date(2026, 10, 1), dt.date(2026, 10, 31), exclude=set())
+    a = t[t["name"] == "a"].iloc[0]
+    assert a["points"] == 2 and a["error %"] == 0.2 and a["incentive"] == 800
+    b = t[t["name"] == "b"].iloc[0]
+    assert b["points"] == 0 and b["incentive"] == 1000
+    ex = A.incentive_table(act, vol, dt.date(2026, 10, 1), dt.date(2026, 10, 31), exclude={"a@x.com"})
+    assert list(ex["name"]) == ["b"]
