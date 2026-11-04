@@ -45,16 +45,6 @@ def _missing(col):
     return col.astype(str).str.strip().str.lower().isin(_MISSING)
 
 
-def score(df, rules=None):
-    """Recalculate packer_points / assembler_points for every entry from the CURRENT points rules,
-    so a change in Settings applies to the whole history, not only to new entries."""
-    d = df.copy()
-    pts = [C.points(c, r, m, rules) for c, r, m in zip(d["category"], d["reason"], d["mistakes"])]
-    d["packer_points"] = [p for p, _ in pts]
-    d["assembler_points"] = [a for _, a in pts]
-    return d
-
-
 def logged_at(df):
     """When each entry was logged: the date an error counts in (incentives are paid monthly, so a complaint found late
     counts in the month it is logged). Imported history carries the old sheet's complaint date here. An entry with no

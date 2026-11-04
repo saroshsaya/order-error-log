@@ -23,7 +23,7 @@ def _vol(rows):
 def test_points_rules():
     assert C.points("Internal", "Wrong drug packed", 2) == (2, 2)                   # (packer, assembler)
     assert C.points("Internal", "Wrong label / wrong order labelled", 5) == (2, 0)  # label: once per order, packer only
-    assert C.points("Internal", "Assembly error caught by packer at packing", 3) == (0, 3)
+    assert C.points("Internal", "Assembly error caught by packer at packing", 3) == (0, 1.5)
     assert C.points("External", "Packed correctly - footage checked", 4) == (0, 0)
     assert C.points("Unknown", "Footage not found", 4) == (0, 0)
     assert C.points("Internal", "Wrong drug packed", 0) == (1, 1)
@@ -118,22 +118,6 @@ def test_excluded_people_are_left_out_of_every_table():
     assert list(A.monthly_pivot(act, vol, "assembler", s, e).index) == ["b"]
     # the exclusion list can be overridden
     assert len(A.person_table(act, vol, "packer", s, e, exclude=())) == 2
-
-
-def test_score_follows_the_current_rules_for_old_and_new_entries():
-    df = _df([{"category": "Internal", "reason": "Wrong label / wrong order labelled", "mistakes": 1},
-              {"category": "Internal", "reason": "Wrong drug packed", "mistakes": 3},
-              {"category": "External", "reason": "Packed correctly - footage checked", "mistakes": 0}])
-    base = A.score(df)
-    assert list(base["packer_points"]) == [2, 3, 0] and list(base["assembler_points"]) == [0, 3, 0]
-    import copy
-    rules = copy.deepcopy(C.REASONS)
-    rules["Internal"]["Wrong label / wrong order labelled"]["p"] = 3        # raise the label penalty
-    rules["Internal"]["Wrong drug packed"]["a"] = 0.5                       # and halve the assembler's
-    new = A.score(df, rules)
-    assert list(new["packer_points"]) == [3, 3, 0] and list(new["assembler_points"]) == [0, 1.5, 0]
-    assert C.points("Internal", "Wrong label / wrong order labelled", 4, rules) == (3, 0)   # still once per order
-    assert A.score(df.iloc[0:0]).empty                                                      # empty log is fine
 
 
 def test_entries_logged_before_the_order_exists_get_filled_in_later():

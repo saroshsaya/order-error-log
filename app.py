@@ -1,5 +1,4 @@
 import calendar
-import copy
 import math
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -140,58 +139,14 @@ def resolved(df: pd.DataFrame) -> pd.DataFrame:
         return df
 
 
-# ----------------------------------------------------------------- points rules + Settings panel
+# ----------------------------------------------------------------- points rules (config.py)
 st.title("📦 Order Error Log")
 if not gate("app_passcode", "Team passcode", "ok_app", "in_app"):
     st.stop()
 
-RULES, LAST_CHANGE = sheets.rules()
+RULES = C.REASONS   # points rules live in config.py (no Settings panel)
 EXECS = list(st.secrets.get("executives", []))
 
-
-def _who(key):
-    return (st.selectbox("Changed by", EXECS, index=None, placeholder="Choose your name…", key=key)
-            if EXECS else st.text_input("Changed by", key=key))
-
-
-with st.sidebar:
-    st.header("Settings")
-    st.caption("Points taken off for each internal error. A change applies to ALL entries in Analytics, old and new.")
-    if LAST_CHANGE:
-        st.caption(f"Last changed {LAST_CHANGE[0]} by {LAST_CHANGE[1]}.")
-    if st.session_state.pop("set_saved", None):
-        st.success("Saved.")
-    ver = st.session_state.setdefault("set_v", 0)
-    table = pd.DataFrame([{"Reason": rs, "Packer": v["p"], "Assembler": v["a"]}
-                          for rs, v in RULES["Internal"].items()])
-    edited = st.data_editor(
-        table, hide_index=True, use_container_width=True, key=f"rules_ed{ver}", disabled=["Reason"],
-        column_config={"Reason": st.column_config.TextColumn(width="medium"),
-                       "Packer": st.column_config.NumberColumn("Packer", min_value=0, max_value=20, step=0.5, format="%g", required=True),
-                       "Assembler": st.column_config.NumberColumn("Assembler", min_value=0, max_value=20, step=0.5, format="%g", required=True)})
-    fixed_names = [rs for rs, v in RULES["Internal"].items() if v.get("fixed")]
-    st.caption("Points are per wrong drug, except " + " and ".join(f"“{x}”" for x in fixed_names) + ", which count once per order. "
-               "External and Unknown never take points.")
-    set_who = _who("set_who")
-    b1, b2 = st.columns(2)
-    save, reset = b1.button("Save", type="primary", key="set_save", use_container_width=True), \
-        b2.button("Reset", key="set_reset", use_container_width=True, help="Go back to the original points.")
-    if save or reset:
-        if not set_who:
-            st.error("Choose your name first.")
-        else:
-            new = copy.deepcopy(C.REASONS if reset else RULES)
-            if save:
-                for r in edited.itertuples():
-                    if pd.notna(r.Packer): new["Internal"][r.Reason]["p"] = sheets._num(r.Packer)
-                    if pd.notna(r.Assembler): new["Internal"][r.Reason]["a"] = sheets._num(r.Assembler)
-            try:
-                sheets.save_rules(new, set_who)
-            except Exception as e:
-                st.error(f"Could not save ({type(e).__name__}). Try again.")
-            else:
-                st.session_state.update(set_saved=True, set_v=ver + 1)
-                st.rerun()
 
 tab_log, tab_stats, tab_inc, tab_logs = st.tabs(["Log an error", "Analytics", "Incentive", "Logs"])
 
@@ -321,7 +276,7 @@ with tab_stats:
         if loaded:
             s, e = loaded
             try:
-                df, vol = A.score(resolved(sheets.load_errors()), RULES), db.load_volumes(s, e)
+                df, vol = resolved(sheets.load_errors()), db.load_volumes(s, e)
             except Exception as ex:  # readable message, never the secrets
                 st.error(f"Could not read the sheet or the database ({type(ex).__name__}). Check the secrets and the access.")
                 df = vol = None
@@ -396,7 +351,7 @@ with tab_inc:
             s = loaded
             e = min(loaded.replace(day=calendar.monthrange(loaded.year, loaded.month)[1]), today)
             try:
-                df, vol = A.score(resolved(sheets.load_errors()), RULES), db.load_volumes(s, e)
+                df, vol = resolved(sheets.load_errors()), db.load_volumes(s, e)
             except Exception as ex:
                 st.error(f"Could not read the sheet or the database ({type(ex).__name__}). Check the secrets and the access.")
                 vol = None
@@ -421,7 +376,7 @@ with tab_inc:
 with tab_logs:
     if gate("admin_passcode", "Admin passcode", "ok_admin", "in_admin_logs"):
         try:
-            df = A.score(resolved(sheets.load_errors()), RULES)
+            df = resolved(sheets.load_errors())
         except Exception as ex:
             st.error(f"Could not read the sheet ({type(ex).__name__}). Check the secrets and the access.")
             df = None

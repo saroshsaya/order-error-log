@@ -48,7 +48,7 @@ REASONS = {
         "Missing quantity":                           {"a": 1, "p": 1},
         "Extra quantity":                             {"a": 1, "p": 1},
         "Outer box not opened to check":              {"a": 1, "p": 1},
-        "Assembly error caught by packer at packing": {"a": 1, "p": 0},
+        "Assembly error caught by packer at packing": {"a": 0.5, "p": 0},
         "Wrong label / wrong order labelled":         {"a": 0, "p": 2, "fixed": True},
         "Non-English address not held back":          {"a": 0, "p": 2, "fixed": True},
         "Other internal":                             {"a": 1, "p": 1},
